@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cat Tile Processor - The Italian Cypress</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script type="module">
+        import imglyRemoveBackground from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.1/+esm';
+        window.imglyRemoveBackground = imglyRemoveBackground;
+        window.dispatchEvent(new Event('bgRemovalLoaded'));
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #FFB6C1;
+            --primary-dark: #FF69B4;
+            --primary-light: #FFC0CB;
+            --bg: #FFF9FA;
+            --card-bg: #ffffff;
+            --text: #4A4A4A;
+            --text-muted: #888888;
+            --border: #F0E0E3;
+            --success: #7BC67B;
+            --warning: #FFB347;
+            --accent: #9B6B7D;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+            border-radius: 16px;
+            color: white;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        header p {
+            opacity: 0.9;
+            margin-top: 0.5rem;
+        }
+
+        /* Card */
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 20px rgba(155, 107, 125, 0.1);
+            border: 1px solid var(--border);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Breed Input */
+        .breed-input-group {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .breed-input-group label {
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .breed-input-group input {
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-size: 1rem;
+            width: 250px;
+            transition: border-color 0.2s;
+        }
+
+        .breed-input-group input:focus {
+            outline: none;
+            border-color: var(--primary-dark);
+        }
+
+        /* Upload Zone */
+        .upload-zone {
+            border: 3px dashed var(--primary);
+            border-radius: 16px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: linear-gradient(135deg, #FFF5F7 0%, #FFFAFA 100%);
+            position: relative;
+        }
+
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: var(--primary-dark);
+            background: linear-gradient(135deg, #FFE4E9 0%, #FFF0F3 100%);
+            transform: scale(1.01);
+        }
+
+        .upload-zone .icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .upload-zone h3 {
+            font-size: 1.25rem;
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-zone p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        /* Source Image Preview */
+        .source-preview {
+            position: relative;
+            display: none;
+            margin-top: 1rem;
+        }
+
+        .source-preview.active {
+            display: block;
+        }
+
+        .source-canvas-container {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+            overflow: auto;
+            border-radius: 12px;
+            background: repeating-conic-gradient(#f0f0f0 0% 25%, #fff 0% 50%) 50% / 20px 20px;
+        }
+
+        #sourceCanvas {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+
+        #overlayCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            align-items: flex-end;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .control-group label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .control-group select,
+        .control-group input[type="number"] {
+            padding: 0.6rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            background: white;
+            min-width: 100px;
+        }
+
+        .control-group select:focus,
+        .control-group input:focus {
+            outline: none;
+            border-color: var(--primary-dark);
+        }
+
+        .slider-control {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .slider-control input[type="range"] {
+            width: 120px;
+            accent-color: var(--primary-dark);
+        }
+
+        .slider-control .value {
+            min-width: 40px;
+            font-weight: 500;
+            color: var(--accent);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.75rem 1.25rem;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 105, 180, 0.4);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--accent);
+            border: 2px solid var(--border);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            border-color: var(--primary);
+            background: var(--bg);
+        }
+
+        .btn-danger {
+            background: #FFE4E4;
+            color: #D63031;
+            border: 2px solid #FFD0D0;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #FFD0D0;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        /* Grid Info */
+        .grid-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: linear-gradient(135deg, #E8F5E9, #F1F8E9);
+            border-radius: 10px;
+            margin-top: 1rem;
+        }
+
+        .grid-info-text {
+            font-size: 0.9rem;
+            color: var(--text);
+        }
+
+        .grid-info-text strong {
+            color: var(--success);
+        }
+
+        /* Processed Grid */
+        .processed-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+
+        .cat-tile {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid var(--border);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .cat-tile:hover {
+            border-color: var(--primary-dark);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(155, 107, 125, 0.2);
+        }
+
+        .cat-tile.selected {
+            border-color: var(--primary-dark);
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+
+        .cat-tile-preview {
+            aspect-ratio: 1;
+            background: repeating-conic-gradient(#f5f5f5 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem;
+        }
+
+        .cat-tile-preview img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .cat-tile-info {
+            padding: 0.75rem;
+            text-align: center;
+            background: linear-gradient(135deg, #FFF5F7, white);
+            border-top: 1px solid var(--border);
+        }
+
+        .cat-tile-number {
+            font-weight: 600;
+            color: var(--accent);
+            font-size: 0.9rem;
+        }
+
+        .cat-tile-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .cat-tile-actions button {
+            flex: 1;
+            padding: 0.4rem;
+            border: 1px solid var(--border);
+            background: white;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .cat-tile-actions button:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Tile adjustment controls */
+        .cat-tile-adjust {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .cat-tile-adjust-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+
+        .adjust-row {
+            display: flex;
+            gap: 2px;
+            align-items: center;
+        }
+
+        .adjust-btn {
+            width: 28px;
+            height: 28px;
+            border: 1px solid var(--border);
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            color: var(--text);
+        }
+
+        .adjust-btn:hover {
+            background: var(--primary-light);
+            border-color: var(--primary);
+        }
+
+        .adjust-btn:active {
+            background: var(--primary);
+            color: white;
+            transform: scale(0.95);
+        }
+
+        .adjust-btn.reset {
+            font-size: 0.65rem;
+            width: 24px;
+            height: 24px;
+        }
+
+        /* Tile scale controls */
+        .cat-tile-scale {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .scale-btn {
+            width: 28px;
+            height: 28px;
+            border: 1px solid var(--border);
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            color: var(--text);
+        }
+
+        .scale-btn:hover {
+            background: var(--primary-light);
+            border-color: var(--primary);
+        }
+
+        .scale-btn:active {
+            background: var(--primary);
+            color: white;
+            transform: scale(0.95);
+        }
+
+        .scale-value {
+            font-size: 0.75rem;
+            color: var(--accent);
+            min-width: 40px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+            grid-column: 1 / -1;
+        }
+
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        /* Footer Actions */
+        .footer-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            margin-top: 1rem;
+        }
+
+        /* Progress */
+        .progress-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 182, 193, 0.3);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .progress-overlay.active {
+            display: flex;
+        }
+
+        .progress-modal {
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(155, 107, 125, 0.3);
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .progress-modal .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            animation: bounce 0.6s ease infinite alternate;
+        }
+
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-10px); }
+        }
+
+        .progress-modal h3 {
+            color: var(--accent);
+            margin-bottom: 1rem;
+        }
+
+        .progress-bar {
+            height: 10px;
+            background: var(--border);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+            width: 0%;
+            transition: width 0.3s;
+            border-radius: 5px;
+        }
+
+        .progress-text {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Instructions */
+        .instructions {
+            background: linear-gradient(135deg, #E3F2FD, #E8EAF6);
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
+            color: #5C6BC0;
+        }
+
+        .instructions strong {
+            color: #3949AB;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .control-group {
+                width: 100%;
+            }
+
+            .processed-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Back link */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .back-link:hover {
+            color: var(--primary-dark);
+        }
+
+        /* Grid layout selector */
+        .grid-layout-selector {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .grid-layout-btn {
+            padding: 0.5rem 1rem;
+            border: 2px solid var(--border);
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .grid-layout-btn:hover {
+            border-color: var(--primary-light);
+        }
+
+        .grid-layout-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Model status */
+        .model-status {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .model-status.loading {
+            background: linear-gradient(135deg, #FFF3E0, #FFECB3);
+            color: #E65100;
+        }
+
+        .model-status.ready {
+            background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+            color: #2E7D32;
+        }
+
+        .model-status .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Toggle switch */
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 48px;
+            height: 26px;
+            background: var(--border);
+            border-radius: 13px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .toggle-switch.active {
+            background: var(--primary-dark);
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(22px);
+        }
+
+        .toggle-label {
+            font-size: 0.85rem;
+            color: var(--text);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">← Back to Home</a>
+
+        <header>
+            <h1>🐱 Cat Tile Processor</h1>
+            <p>Transform cat breed sheets into game-ready sprite tiles</p>
+        </header>
+
+        <!-- Upload Section -->
+        <div class="card">
+            <div class="breed-input-group">
+                <label for="breedName">Breed Name:</label>
+                <input type="text" id="breedName" placeholder="e.g., Abyssinian" value="">
+            </div>
+
+            <div class="upload-zone" id="uploadZone">
+                <div class="icon">🐱</div>
+                <h3>Drop cat breed image here</h3>
+                <p>or click to upload</p>
+                <p style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--primary-dark);">PNG with transparency recommended</p>
+            </div>
+            <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp">
+
+            <div class="source-preview" id="sourcePreview">
+                <div class="instructions">
+                    <strong>Grid Division:</strong> The image will be divided into equal square cells. Adjust the grid layout below to match your sprite sheet.
+                </div>
+                <div class="source-canvas-container" id="canvasContainer">
+                    <canvas id="sourceCanvas"></canvas>
+                    <canvas id="overlayCanvas"></canvas>
+                </div>
+
+                <div class="grid-info" id="gridInfo">
+                    <span class="grid-info-text">Grid: <strong id="gridLayoutText">2 × 2</strong> = <strong id="totalTilesText">4 tiles</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings & Actions -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">⚙️ Processing Settings</span>
+            </div>
+
+            <div id="modelStatus" class="model-status loading">
+                <div class="spinner"></div>
+                <span>Loading background removal model...</span>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <label>Background Removal</label>
+                    <select id="bgRemovalMethod">
+                        <option value="none">None</option>
+                        <option value="greenscreen" selected>Remove Green Screen</option>
+                        <option value="checkerboard">Remove Checkerboard</option>
+                        <option value="ai">AI Background Removal</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label>Grid Layout</label>
+                    <div class="grid-layout-selector">
+                        <button class="grid-layout-btn" data-cols="1" data-rows="1">1×1</button>
+                        <button class="grid-layout-btn active" data-cols="2" data-rows="2">2×2</button>
+                        <button class="grid-layout-btn" data-cols="3" data-rows="2">3×2</button>
+                        <button class="grid-layout-btn" data-cols="4" data-rows="2">4×2</button>
+                        <button class="grid-layout-btn" data-cols="4" data-rows="3">4×3</button>
+                        <button class="grid-layout-btn" data-cols="4" data-rows="4">4×4</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Custom Grid</label>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <input type="number" id="customCols" min="1" max="10" value="2" style="width: 60px;">
+                        <span>×</span>
+                        <input type="number" id="customRows" min="1" max="10" value="2" style="width: 60px;">
+                        <button class="btn btn-secondary" id="applyCustomGrid" style="padding: 0.5rem 0.75rem;">Apply</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Cell Padding</label>
+                    <div class="slider-control">
+                        <input type="range" id="paddingSlider" min="0" max="15" value="0">
+                        <span class="value" id="paddingValue">0%</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Output Size</label>
+                    <select id="outputSize">
+                        <option value="128">128 × 128</option>
+                        <option value="256">256 × 256</option>
+                        <option value="512">512 × 512</option>
+                        <option value="768">768 × 768</option>
+                        <option value="1024">1024 × 1024</option>
+                        <option value="2048" selected>2048 × 2048</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label>Content Scale</label>
+                    <div class="slider-control">
+                        <input type="range" id="scaleSlider" min="100" max="200" value="150">
+                        <span class="value" id="scaleValue">150%</span>
+                    </div>
+                </div>
+
+                <div class="btn-group" style="margin-left: auto;">
+                    <button class="btn btn-primary" id="processBtn" disabled>
+                        ✨ Process Tiles
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Processed Tiles -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">🎨 Processed Tiles</span>
+                <span id="tileCount" style="color: var(--text-muted); font-size: 0.9rem;">0 tiles</span>
+            </div>
+
+            <div id="processedGrid" class="processed-grid">
+                <div class="empty-state" id="emptyState">
+                    <div class="icon">📦</div>
+                    <p>No tiles processed yet</p>
+                    <p style="font-size: 0.85rem;">Upload an image and click "Process Tiles"</p>
+                </div>
+            </div>
+
+            <div class="footer-actions" id="footerActions" style="display: none;">
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="downloadAllBtn">
+                        📦 Download All as ZIP
+                    </button>
+                    <button class="btn btn-danger" id="clearBtn">
+                        🗑️ Clear All
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Overlay -->
+    <div class="progress-overlay" id="progressOverlay">
+        <div class="progress-modal">
+            <div class="icon">🐱</div>
+            <h3 id="progressTitle">Processing...</h3>
+            <div class="progress-bar">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+            <p class="progress-text" id="progressText">0 of 0</p>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let sourceImage = null;
+        let processedTiles = [];
+        let tileOffsets = {}; // Store X/Y offsets for each tile: { 1: {x: 0, y: 0}, 2: {x: 0, y: 0}, ... }
+        let tileScales = {}; // Store scale for each tile: { 1: 100, 2: 100, ... } (percentage)
+        let gridCols = 2;
+        let gridRows = 2;
+        let scale = 1;
+        let modelReady = false;
+        const NUDGE_AMOUNT = 5; // Pixels to move per click (in source image coordinates)
+
+        // DOM Elements
+        const uploadZone = document.getElementById('uploadZone');
+        const modelStatus = document.getElementById('modelStatus');
+        const bgRemovalMethod = document.getElementById('bgRemovalMethod');
+        const fileInput = document.getElementById('fileInput');
+        const breedNameInput = document.getElementById('breedName');
+        const sourcePreview = document.getElementById('sourcePreview');
+        const sourceCanvas = document.getElementById('sourceCanvas');
+        const overlayCanvas = document.getElementById('overlayCanvas');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const gridInfo = document.getElementById('gridInfo');
+        const gridLayoutText = document.getElementById('gridLayoutText');
+        const totalTilesText = document.getElementById('totalTilesText');
+        const processedGrid = document.getElementById('processedGrid');
+        const emptyState = document.getElementById('emptyState');
+        const tileCount = document.getElementById('tileCount');
+        const footerActions = document.getElementById('footerActions');
+        const paddingSlider = document.getElementById('paddingSlider');
+        const paddingValue = document.getElementById('paddingValue');
+        const scaleSlider = document.getElementById('scaleSlider');
+        const scaleValueEl = document.getElementById('scaleValue');
+        const outputSizeSelect = document.getElementById('outputSize');
+        const processBtn = document.getElementById('processBtn');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const progressOverlay = document.getElementById('progressOverlay');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const progressTitle = document.getElementById('progressTitle');
+        const customCols = document.getElementById('customCols');
+        const customRows = document.getElementById('customRows');
+        const applyCustomGrid = document.getElementById('applyCustomGrid');
+
+        const sourceCtx = sourceCanvas.getContext('2d');
+        const overlayCtx = overlayCanvas.getContext('2d');
+
+        // Initialize background removal model
+        function initBackgroundRemoval() {
+            if (typeof window.imglyRemoveBackground !== 'undefined') {
+                modelReady = true;
+                modelStatus.classList.remove('loading');
+                modelStatus.classList.add('ready');
+                modelStatus.innerHTML = '<span>✓</span><span>Background removal ready (Green Screen, Checkerboard, AI)</span>';
+            }
+        }
+
+        // Listen for the module to load
+        window.addEventListener('bgRemovalLoaded', () => {
+            initBackgroundRemoval();
+        });
+
+        // Also check immediately in case it loaded before this script
+        initBackgroundRemoval();
+
+        // Set a timeout - checkerboard removal always works
+        setTimeout(() => {
+            if (!modelReady) {
+                modelReady = true; // Checkerboard removal doesn't need the AI model
+                modelStatus.classList.remove('loading');
+                modelStatus.classList.add('ready');
+                modelStatus.innerHTML = '<span>✓</span><span>Green Screen & Checkerboard ready (AI loading...)</span>';
+            }
+        }, 3000);
+
+        // Upload handlers
+        uploadZone.addEventListener('click', () => fileInput.click());
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    sourceImage = img;
+
+                    // Set canvas sizes
+                    const maxWidth = canvasContainer.clientWidth || 800;
+                    scale = Math.min(1, maxWidth / img.width);
+                    const displayWidth = img.width * scale;
+                    const displayHeight = img.height * scale;
+
+                    sourceCanvas.width = displayWidth;
+                    sourceCanvas.height = displayHeight;
+                    overlayCanvas.width = displayWidth;
+                    overlayCanvas.height = displayHeight;
+
+                    // Draw source image
+                    sourceCtx.drawImage(img, 0, 0, displayWidth, displayHeight);
+
+                    // Show preview
+                    sourcePreview.classList.add('active');
+                    uploadZone.style.display = 'none';
+
+                    // Enable buttons
+                    processBtn.disabled = false;
+
+                    // Draw grid
+                    drawGrid();
+
+                    // Try to extract breed name from filename
+                    if (!breedNameInput.value) {
+                        const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+                        breedNameInput.value = name.charAt(0).toUpperCase() + name.slice(1);
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Draw grid overlay
+        function drawGrid() {
+            if (!sourceImage) return;
+
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+            const cellWidth = overlayCanvas.width / gridCols;
+            const cellHeight = overlayCanvas.height / gridRows;
+
+            // Since we want 1:1 ratio cells, calculate the square size
+            const cellSize = Math.min(cellWidth, cellHeight);
+
+            // Draw grid lines and numbers
+            let cellNum = 1;
+            for (let row = 0; row < gridRows; row++) {
+                for (let col = 0; col < gridCols; col++) {
+                    const x = col * cellWidth;
+                    const y = row * cellHeight;
+
+                    // Draw cell border
+                    overlayCtx.strokeStyle = '#FF69B4';
+                    overlayCtx.lineWidth = 2;
+                    overlayCtx.strokeRect(x, y, cellWidth, cellHeight);
+
+                    // Draw semi-transparent fill
+                    overlayCtx.fillStyle = 'rgba(255, 182, 193, 0.1)';
+                    overlayCtx.fillRect(x, y, cellWidth, cellHeight);
+
+                    // Draw number badge
+                    const badgeSize = 24;
+                    overlayCtx.fillStyle = '#FF69B4';
+                    overlayCtx.beginPath();
+                    overlayCtx.arc(x + badgeSize / 2 + 8, y + badgeSize / 2 + 8, badgeSize / 2, 0, Math.PI * 2);
+                    overlayCtx.fill();
+
+                    overlayCtx.fillStyle = 'white';
+                    overlayCtx.font = 'bold 12px sans-serif';
+                    overlayCtx.textAlign = 'center';
+                    overlayCtx.textBaseline = 'middle';
+                    overlayCtx.fillText(cellNum, x + badgeSize / 2 + 8, y + badgeSize / 2 + 8);
+
+                    cellNum++;
+                }
+            }
+
+            // Update info text
+            gridLayoutText.textContent = `${gridCols} × ${gridRows}`;
+            totalTilesText.textContent = `${gridCols * gridRows} tiles`;
+        }
+
+        // Grid layout buttons
+        document.querySelectorAll('.grid-layout-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.grid-layout-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                gridCols = parseInt(btn.dataset.cols);
+                gridRows = parseInt(btn.dataset.rows);
+                customCols.value = gridCols;
+                customRows.value = gridRows;
+
+                drawGrid();
+            });
+        });
+
+        // Custom grid
+        applyCustomGrid.addEventListener('click', () => {
+            const cols = parseInt(customCols.value);
+            const rows = parseInt(customRows.value);
+
+            if (cols >= 1 && cols <= 10 && rows >= 1 && rows <= 10) {
+                gridCols = cols;
+                gridRows = rows;
+
+                // Deselect preset buttons
+                document.querySelectorAll('.grid-layout-btn').forEach(b => {
+                    const btnCols = parseInt(b.dataset.cols);
+                    const btnRows = parseInt(b.dataset.rows);
+                    b.classList.toggle('active', btnCols === cols && btnRows === rows);
+                });
+
+                drawGrid();
+            }
+        });
+
+        // Padding slider
+        paddingSlider.addEventListener('input', () => {
+            paddingValue.textContent = paddingSlider.value + '%';
+        });
+
+        // Scale slider
+        scaleSlider.addEventListener('input', () => {
+            scaleValueEl.textContent = scaleSlider.value + '%';
+        });
+
+        // Process tiles
+        processBtn.addEventListener('click', processTiles);
+
+        async function processTiles() {
+            if (!sourceImage) return;
+
+            const padding = parseInt(paddingSlider.value) / 100;
+            const outputSize = parseInt(outputSizeSelect.value);
+            const contentScale = parseInt(scaleSlider.value) / 100;
+            const totalTiles = gridCols * gridRows;
+            const removalMethod = bgRemovalMethod.value;
+
+            let progressMsg = 'Processing tiles...';
+            if (removalMethod === 'greenscreen') progressMsg = 'Removing green screen & processing...';
+            if (removalMethod === 'checkerboard') progressMsg = 'Removing checkerboard & processing...';
+            if (removalMethod === 'ai') progressMsg = 'AI background removal & processing...';
+            showProgress(progressMsg, 0, totalTiles);
+            processedTiles = [];
+            tileOffsets = {}; // Reset offsets when reprocessing
+            tileScales = {}; // Reset scales when reprocessing
+
+            const cellWidth = sourceImage.width / gridCols;
+            const cellHeight = sourceImage.height / gridRows;
+
+            let tileNum = 1;
+            for (let row = 0; row < gridRows; row++) {
+                for (let col = 0; col < gridCols; col++) {
+                    const bounds = {
+                        x: col * cellWidth,
+                        y: row * cellHeight,
+                        width: cellWidth,
+                        height: cellHeight
+                    };
+
+                    // Initialize offset and scale if not exists
+                    if (!tileOffsets[tileNum]) {
+                        tileOffsets[tileNum] = { x: 0, y: 0 };
+                    }
+                    if (!tileScales[tileNum]) {
+                        tileScales[tileNum] = parseInt(scaleSlider.value); // Initialize from global scale
+                    }
+                    const tile = await processTile(bounds, padding, outputSize, tileNum, removalMethod, tileOffsets[tileNum], tileScales[tileNum] / 100);
+                    processedTiles.push(tile);
+                    updateProgress(tileNum, totalTiles);
+                    tileNum++;
+                }
+            }
+
+            renderTiles();
+            hideProgress();
+        }
+
+        async function processTile(bounds, padding, outputSize, number, removalMethod, offset = { x: 0, y: 0 }, contentScale = 1) {
+            // Create canvas at original image resolution
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = sourceImage.width;
+            tempCanvas.height = sourceImage.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(sourceImage, 0, 0);
+
+            // Calculate the square cell (use the smaller dimension)
+            const cellSize = Math.min(bounds.width, bounds.height);
+
+            // Calculate padding in pixels
+            const paddingPx = cellSize * padding;
+
+            // Inner content size after padding
+            const innerSize = cellSize - (paddingPx * 2);
+
+            // Center the square cell within the bounds
+            const cellOffsetX = (bounds.width - cellSize) / 2;
+            const cellOffsetY = (bounds.height - cellSize) / 2;
+
+            // Source coordinates (with padding trimmed) + user offset adjustment
+            const srcX = bounds.x + cellOffsetX + paddingPx + offset.x;
+            const srcY = bounds.y + cellOffsetY + paddingPx + offset.y;
+            const srcSize = innerSize;
+
+            // Create cropped tile canvas
+            const croppedCanvas = document.createElement('canvas');
+            croppedCanvas.width = srcSize;
+            croppedCanvas.height = srcSize;
+            const croppedCtx = croppedCanvas.getContext('2d');
+            croppedCtx.drawImage(
+                tempCanvas,
+                srcX, srcY, srcSize, srcSize,
+                0, 0, srcSize, srcSize
+            );
+
+            // Apply background removal based on method
+            let finalCanvas = croppedCanvas;
+
+            if (removalMethod === 'greenscreen') {
+                finalCanvas = removeGreenScreenBackground(croppedCanvas);
+            } else if (removalMethod === 'checkerboard') {
+                finalCanvas = removeCheckerboardBackground(croppedCanvas);
+            } else if (removalMethod === 'ai' && window.imglyRemoveBackground) {
+                try {
+                    const dataUrl = croppedCanvas.toDataURL('image/png');
+                    const blob = await window.imglyRemoveBackground(dataUrl);
+                    const img = await blobToImage(blob);
+
+                    finalCanvas = document.createElement('canvas');
+                    finalCanvas.width = srcSize;
+                    finalCanvas.height = srcSize;
+                    const ctx = finalCanvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, srcSize, srcSize);
+                } catch (error) {
+                    console.error('AI background removal failed for tile', number, error);
+                    // Fall back to checkerboard removal
+                    finalCanvas = removeCheckerboardBackground(croppedCanvas);
+                }
+            }
+
+            // Create output canvas at final size
+            const outputCanvas = document.createElement('canvas');
+            outputCanvas.width = outputSize;
+            outputCanvas.height = outputSize;
+            const outputCtx = outputCanvas.getContext('2d');
+            outputCtx.imageSmoothingEnabled = true;
+            outputCtx.imageSmoothingQuality = 'high';
+
+            // Apply content scale - scale up the content to fill more of the tile
+            const scaledSize = outputSize * contentScale;
+            const scaleOffset = (outputSize - scaledSize) / 2;
+
+            // Draw the tile scaled and centered
+            outputCtx.drawImage(finalCanvas, scaleOffset, scaleOffset, scaledSize, scaledSize);
+
+            return {
+                number,
+                bounds,
+                canvas: outputCanvas,
+                dataUrl: outputCanvas.toDataURL('image/png')
+            };
+        }
+
+        // Remove checkerboard background (gray/white pattern)
+        function removeCheckerboardBackground(canvas) {
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            // Checkerboard colors are typically:
+            // Light: ~(200-255, 200-255, 200-255) - white/light gray
+            // Dark: ~(180-220, 180-220, 180-220) - medium gray
+            // We detect pixels that are grayish (R≈G≈B) and in the gray/white range
+
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+
+                // Check if pixel is grayish (R, G, B values are close to each other)
+                const maxDiff = Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b));
+                const avg = (r + g + b) / 3;
+
+                // If the pixel is grayish (low color variance) and in the light gray/white range
+                // This targets the typical checkerboard pattern colors
+                if (maxDiff < 20 && avg > 170) {
+                    // Make it transparent
+                    data[i + 3] = 0;
+                }
+            }
+
+            // Create result canvas
+            const resultCanvas = document.createElement('canvas');
+            resultCanvas.width = canvas.width;
+            resultCanvas.height = canvas.height;
+            const resultCtx = resultCanvas.getContext('2d');
+            resultCtx.putImageData(imageData, 0, 0);
+
+            return resultCanvas;
+        }
+
+        // Remove green screen background (chroma key)
+        function removeGreenScreenBackground(canvas) {
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            // Green screen detection
+            // A green screen pixel has high green relative to red and blue
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+
+                // Check if pixel is green-dominant (chroma key green)
+                // Green should be significantly higher than red and blue
+                const greenDominance = g - Math.max(r, b);
+                const isGreen = greenDominance > 30 && g > 80;
+
+                // Also detect bright/lime green variations
+                const isLimeGreen = g > 150 && g > r * 1.3 && g > b * 1.3;
+
+                if (isGreen || isLimeGreen) {
+                    // Make it transparent
+                    data[i + 3] = 0;
+                }
+            }
+
+            // Create result canvas
+            const resultCanvas = document.createElement('canvas');
+            resultCanvas.width = canvas.width;
+            resultCanvas.height = canvas.height;
+            const resultCtx = resultCanvas.getContext('2d');
+            resultCtx.putImageData(imageData, 0, 0);
+
+            return resultCanvas;
+        }
+
+        // Helper: Convert blob to image
+        function blobToImage(blob) {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(blob);
+                const img = new Image();
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    resolve(img);
+                };
+                img.onerror = reject;
+                img.src = url;
+            });
+        }
+
+        // Render tiles
+        function renderTiles() {
+            if (processedTiles.length === 0) {
+                processedGrid.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📦</div>
+                        <p>No tiles processed yet</p>
+                        <p style="font-size: 0.85rem;">Upload an image and click "Process Tiles"</p>
+                    </div>
+                `;
+                footerActions.style.display = 'none';
+                tileCount.textContent = '0 tiles';
+                return;
+            }
+
+            // Update grid columns based on layout
+            processedGrid.style.gridTemplateColumns = `repeat(${gridCols}, 1fr)`;
+
+            const breedName = breedNameInput.value || 'Cat';
+
+            processedGrid.innerHTML = processedTiles.map(tile => `
+                <div class="cat-tile" data-number="${tile.number}">
+                    <div class="cat-tile-preview">
+                        <img src="${tile.dataUrl}" alt="Cat ${tile.number}">
+                    </div>
+                    <div class="cat-tile-info">
+                        <div class="cat-tile-number">🐱 Cat ${tile.number}</div>
+                        <div class="cat-tile-actions">
+                            <button class="download-single" data-number="${tile.number}">Download</button>
+                        </div>
+                        <div class="cat-tile-adjust">
+                            <div class="cat-tile-adjust-label">Adjust Position</div>
+                            <div class="adjust-row">
+                                <button class="adjust-btn" data-number="${tile.number}" data-dir="up" title="Move up">↑</button>
+                            </div>
+                            <div class="adjust-row">
+                                <button class="adjust-btn" data-number="${tile.number}" data-dir="left" title="Move left">←</button>
+                                <button class="adjust-btn reset" data-number="${tile.number}" data-dir="reset" title="Reset">⟲</button>
+                                <button class="adjust-btn" data-number="${tile.number}" data-dir="right" title="Move right">→</button>
+                            </div>
+                            <div class="adjust-row">
+                                <button class="adjust-btn" data-number="${tile.number}" data-dir="down" title="Move down">↓</button>
+                            </div>
+                        </div>
+                        <div class="cat-tile-scale">
+                            <button class="scale-btn" data-number="${tile.number}" data-action="zoomout" title="Zoom out">−</button>
+                            <span class="scale-value" data-number="${tile.number}">${tileScales[tile.number] || 100}%</span>
+                            <button class="scale-btn" data-number="${tile.number}" data-action="zoomin" title="Zoom in">+</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Attach download listeners
+            document.querySelectorAll('.download-single').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const number = parseInt(btn.dataset.number);
+                    downloadSingle(number);
+                });
+            });
+
+            // Attach adjustment listeners
+            document.querySelectorAll('.adjust-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const number = parseInt(btn.dataset.number);
+                    const dir = btn.dataset.dir;
+                    adjustTile(number, dir);
+                });
+            });
+
+            // Attach scale listeners
+            document.querySelectorAll('.scale-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const number = parseInt(btn.dataset.number);
+                    const action = btn.dataset.action;
+                    adjustTileScale(number, action);
+                });
+            });
+
+            footerActions.style.display = 'flex';
+            tileCount.textContent = `${processedTiles.length} tiles`;
+        }
+
+        // Adjust tile position
+        async function adjustTile(number, direction) {
+            if (!tileOffsets[number]) {
+                tileOffsets[number] = { x: 0, y: 0 };
+            }
+
+            // Update offset based on direction
+            switch (direction) {
+                case 'up':
+                    tileOffsets[number].y -= NUDGE_AMOUNT;
+                    break;
+                case 'down':
+                    tileOffsets[number].y += NUDGE_AMOUNT;
+                    break;
+                case 'left':
+                    tileOffsets[number].x -= NUDGE_AMOUNT;
+                    break;
+                case 'right':
+                    tileOffsets[number].x += NUDGE_AMOUNT;
+                    break;
+                case 'reset':
+                    tileOffsets[number] = { x: 0, y: 0 };
+                    break;
+            }
+
+            // Reprocess just this tile
+            await reprocessSingleTile(number);
+        }
+
+        // Adjust tile scale (zoom in/out)
+        async function adjustTileScale(number, action) {
+            if (!tileScales[number]) {
+                tileScales[number] = 100;
+            }
+
+            const SCALE_STEP = 5; // 5% per click
+            const MIN_SCALE = 50;
+            const MAX_SCALE = 300;
+
+            if (action === 'zoomin') {
+                tileScales[number] = Math.min(MAX_SCALE, tileScales[number] + SCALE_STEP);
+            } else if (action === 'zoomout') {
+                tileScales[number] = Math.max(MIN_SCALE, tileScales[number] - SCALE_STEP);
+            }
+
+            // Update the scale display
+            const scaleValueEl = document.querySelector(`.scale-value[data-number="${number}"]`);
+            if (scaleValueEl) {
+                scaleValueEl.textContent = tileScales[number] + '%';
+            }
+
+            // Reprocess just this tile
+            await reprocessSingleTile(number);
+        }
+
+        // Reprocess a single tile with its current offset and scale
+        async function reprocessSingleTile(number) {
+            const tileIndex = processedTiles.findIndex(t => t.number === number);
+            if (tileIndex === -1) return;
+
+            const tile = processedTiles[tileIndex];
+            const padding = parseInt(paddingSlider.value) / 100;
+            const outputSize = parseInt(outputSizeSelect.value);
+            // Use per-tile scale if available, otherwise fall back to global
+            const contentScale = (tileScales[number] || parseInt(scaleSlider.value)) / 100;
+            const removalMethod = bgRemovalMethod.value;
+
+            // Reprocess with updated offset and scale
+            const newTile = await processTile(
+                tile.bounds,
+                padding,
+                outputSize,
+                number,
+                removalMethod,
+                tileOffsets[number],
+                contentScale
+            );
+
+            // Update the tile in the array
+            processedTiles[tileIndex] = newTile;
+
+            // Update just the image in the DOM (avoid full re-render for performance)
+            const tileElement = document.querySelector(`.cat-tile[data-number="${number}"] img`);
+            if (tileElement) {
+                tileElement.src = newTile.dataUrl;
+            }
+        }
+
+        // Download functions
+        function downloadSingle(number) {
+            const tile = processedTiles.find(t => t.number === number);
+            if (!tile) return;
+
+            const breedName = breedNameInput.value || 'Cat';
+            const filename = `${breedName.replace(/\s+/g, '_')}_${String(number).padStart(2, '0')}.png`;
+
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = tile.dataUrl;
+            link.click();
+        }
+
+        downloadAllBtn.addEventListener('click', downloadAllAsZip);
+
+        async function downloadAllAsZip() {
+            if (processedTiles.length === 0) return;
+
+            const breedName = breedNameInput.value || 'Cat';
+            showProgress('Creating ZIP...', 0, processedTiles.length);
+
+            const zip = new JSZip();
+
+            for (let i = 0; i < processedTiles.length; i++) {
+                const tile = processedTiles[i];
+                const filename = `${breedName.replace(/\s+/g, '_')}_${String(tile.number).padStart(2, '0')}.png`;
+                const base64 = tile.dataUrl.split(',')[1];
+                zip.file(filename, base64, { base64: true });
+                updateProgress(i + 1, processedTiles.length);
+            }
+
+            const blob = await zip.generateAsync({ type: 'blob' });
+            const link = document.createElement('a');
+            link.download = `${breedName.replace(/\s+/g, '_')}_tiles.zip`;
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            URL.revokeObjectURL(link.href);
+
+            hideProgress();
+        }
+
+        clearBtn.addEventListener('click', () => {
+            processedTiles = [];
+            renderTiles();
+        });
+
+        // Progress helpers
+        function showProgress(title, current, total) {
+            progressTitle.textContent = title;
+            progressText.textContent = `${current} of ${total}`;
+            progressFill.style.width = `${(current / total) * 100}%`;
+            progressOverlay.classList.add('active');
+        }
+
+        function updateProgress(current, total) {
+            progressText.textContent = `${current} of ${total}`;
+            progressFill.style.width = `${(current / total) * 100}%`;
+        }
+
+        function hideProgress() {
+            progressOverlay.classList.remove('active');
+        }
+    </script>
+</body>
+</html>
